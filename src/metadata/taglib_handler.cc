@@ -308,6 +308,7 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
     {
         TagLib::ID3v2::FrameList list = mp.ID3v2Tag()->frameList("APIC");
         TagLib::ID3v2::AttachedPictureFrame *art = NULL;
+        bool did_alloc_art = false;
         // Look for embedded album art
         if (!list.isEmpty())
         {
@@ -322,6 +323,7 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
             if(imagePath != "")
             {
                 art = new TagLib::ID3v2::AttachedPictureFrame;
+                did_alloc_art = true;
                 ImageFile albumart(imagePath.c_str());
             
                 TagLib::ByteVector data = albumart.data();
@@ -329,7 +331,7 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
             }
         }
 
-        if(art && art->picture().size() < 1)
+        if(art && art->picture().size() < 1 && did_alloc_art)
         {
             delete art;
         }
@@ -346,8 +348,11 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
 #endif
                     art_mimetype = _(MIMETYPE_DEFAULT);
             }
-        
-            delete art;
+            
+            if (did_alloc_art)
+            {
+                delete art;
+            }
             
             // if we could not determine the mimetype, then there is no
             // point to add the resource - it's probably garbage
@@ -408,6 +413,7 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
 {
     // we should only get mp3 files here
     TagLib::MPEG::File f(item->getLocation().c_str());
+    bool did_alloc_art = false;
 
     if (!f.isValid())
     {
@@ -436,6 +442,7 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
             if(imagePath != "")
             {
                 art = new TagLib::ID3v2::AttachedPictureFrame;
+                did_alloc_art = true;
                 ImageFile albumart(imagePath.c_str());
             
                 TagLib::ByteVector data = albumart.data();
@@ -452,7 +459,10 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
             Ref < IOHandler > h(new MemIOHandler((void *)art->picture().data(), art->picture().size()));
             *data_size = art->picture().size();
 
-            delete art;
+            if (did_alloc_art)
+            {
+                delete art;
+            }
         
             return h;
         }
