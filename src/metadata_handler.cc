@@ -142,6 +142,9 @@ void MetadataHandler::setMetadata(Ref<CdsItem> item)
            ((content_type == CONTENT_TYPE_OGG) && 
             (!item->getFlag(OBJECT_FLAG_OGG_THEORA))) ||
             (content_type == CONTENT_TYPE_WMA) ||
+            (content_type == CONTENT_TYPE_FLAC) ||
+            (content_type == CONTENT_TYPE_WAV) ||
+            (content_type == CONTENT_TYPE_AIFF) ||
             (content_type == CONTENT_TYPE_WAVPACK))
         {
             handler = Ref<MetadataHandler>(new TagHandler());
@@ -157,14 +160,14 @@ void MetadataHandler::setMetadata(Ref<CdsItem> item)
 #endif // HAVE_ID3LIB
 #endif // HAVE_TAGLIB
 
-#ifdef HAVE_FLAC
+/*#ifdef HAVE_FLAC
         if (content_type == CONTENT_TYPE_FLAC)
         {
             handler = Ref<MetadataHandler>(new FlacHandler());
             break;
         }
 
-#endif
+#endif*/
 
 #ifdef HAVE_EXIV2
 /*        
