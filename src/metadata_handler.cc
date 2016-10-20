@@ -137,7 +137,8 @@ void MetadataHandler::setMetadata(Ref<CdsItem> item)
     do
     {
 #ifdef HAVE_TAGLIB
-        if ((content_type == CONTENT_TYPE_MP3) || 
+        if ((content_type == CONTENT_TYPE_MP3) ||
+            (content_type == CONTENT_TYPE_DSF) ||
            ((content_type == CONTENT_TYPE_OGG) && 
             (!item->getFlag(OBJECT_FLAG_OGG_THEORA))) ||
             (content_type == CONTENT_TYPE_WMA) ||
