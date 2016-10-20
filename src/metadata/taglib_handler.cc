@@ -42,6 +42,7 @@
 #include <tag.h>
 #include <id3v2tag.h>
 #include <mpegfile.h>
+#include <flacfile.h>
 #include <audioproperties.h>
 #include <attachedpictureframe.h>
 #include <textidentificationframe.h>
@@ -203,7 +204,6 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
     if (f.isNull() || (!f.tag()))
         return;
 
-
     TagLib::Tag *tag = f.tag();
 
     for (int i = 0; i < M_MAX; i++)
@@ -305,76 +305,103 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
         }
     }
 
-    // Look for embedded album art
-    TagLib::ID3v2::FrameList list = mp.ID3v2Tag()->frameList("APIC");
-    TagLib::ID3v2::AttachedPictureFrame *art;
-    bool did_alloc_art = false;
-    if (!list.isEmpty())
     {
-        art = static_cast<TagLib::ID3v2::AttachedPictureFrame *>(list.front());
-    }
-    // Embedded art was not found, look for folder.jpg, cover.jpg, art.jpg, whatever.jpg 
-    else
-    {
-        art = new TagLib::ID3v2::AttachedPictureFrame;
-        did_alloc_art = true;
-        Ref<StringConverter> sc = StringConverter::i2i(); // sure is sure
-
-        std::string fileName = item->getLocation().c_str();
-        
-        std::string imagePath = getAlbumArtFromFilename(fileName);
-
-        if (imagePath == "")
+        TagLib::ID3v2::FrameList list = mp.ID3v2Tag()->frameList("APIC");
+        TagLib::ID3v2::AttachedPictureFrame *art = NULL;
+        // Look for embedded album art
+        if (!list.isEmpty())
         {
-            if (did_alloc_art)
+            art = static_cast< TagLib::ID3v2::AttachedPictureFrame * >(list.front());
+        }
+        // Embedded art was not found, look for folder.jpg, cover.jpg, art.jpg, whatever.jpg 
+        else
+        {
+            std::string fileName = item->getLocation().c_str();
+            std::string imagePath = getAlbumArtFromFilename(fileName);
+
+            if(imagePath != "")
             {
-                delete art;
+                art = new TagLib::ID3v2::AttachedPictureFrame;
+                ImageFile albumart(imagePath.c_str());
+            
+                TagLib::ByteVector data = albumart.data();
+                art->setPicture(data);
             }
-            return;
         }
 
-        ImageFile albumart(imagePath.c_str());
-
-        TagLib::ByteVector data = albumart.data();
-        art->setPicture(data);
-    }
-
-    if (art->picture().size() < 1)
-    {
-
-        if (did_alloc_art)
+        if(art && art->picture().size() < 1)
         {
             delete art;
         }
-        return;
-    }
-
-    String art_mimetype = sc->convert(art->mimeType().toCString(true));
-    // saw that simply "PNG" was used with some mp3's, so mimetype setting
-    // was probably invalid
-    if (!string_ok(art_mimetype) || (art_mimetype.index('/') == -1))
-    {
+        else if(art)
+        {
+            String art_mimetype = sc->convert(art->mimeType().toCString(true));
+            // saw that simply "PNG" was used with some mp3's, so mimetype setting
+            // was probably invalid
+            if (!string_ok(art_mimetype) || (art_mimetype.index('/') == -1))
+            {
 #ifdef HAVE_MAGIC
-        art_mimetype =  ContentManager::getInstance()->getMimeTypeFromBuffer((void *)art->picture().data(), art->picture().size());
-        if (!string_ok(art_mimetype))
+                art_mimetype =  ContentManager::getInstance()->getMimeTypeFromBuffer((void *)art->picture().data(), art->picture().size());
+                if (!string_ok(art_mimetype))
 #endif
-        art_mimetype = _(MIMETYPE_DEFAULT);
+                    art_mimetype = _(MIMETYPE_DEFAULT);
+            }
+        
+            delete art;
+            
+            // if we could not determine the mimetype, then there is no
+            // point to add the resource - it's probably garbage
+            if (art_mimetype != _(MIMETYPE_DEFAULT))
+            {
+                Ref<CdsResource> resource(new CdsResource(CH_ID3));
+                resource->addAttribute(MetadataHandler::getResAttrName(R_PROTOCOLINFO), renderProtocolInfo(art_mimetype));
+                resource->addParameter(_(RESOURCE_CONTENT_TYPE), _(ID3_ALBUM_ART));
+                item->addResource(resource);
+                return;
+            }        
+        }
     }
-
-    // if we could not determine the mimetype, then there is no
-    // point to add the resource - it's probably garbage
-    if (art_mimetype != _(MIMETYPE_DEFAULT))
+    
+    TagLib::FLAC::File flac_file(item->getLocation().c_str());
+    if(!flac_file.isValid())
     {
-        Ref<CdsResource> resource(new CdsResource(CH_ID3));
-        resource->addAttribute(MetadataHandler::getResAttrName(R_PROTOCOLINFO), renderProtocolInfo(art_mimetype));
-        resource->addParameter(_(RESOURCE_CONTENT_TYPE), _(ID3_ALBUM_ART));
-        item->addResource(resource);
+        //cout << "INVALID FLAC FILE: " << item->getLocation().c_str() << endl;
     }
-
-    if (did_alloc_art)
+    else
     {
-        delete art;
+        const TagLib::List<TagLib::FLAC::Picture*>& flac_pics = flac_file.pictureList();
+        if(flac_pics.size() > 0)
+        {
+            TagLib::FLAC::Picture &pic = *flac_pics[0];
+            String art_mimetype = sc->convert(pic.mimeType().toCString(true));
+            // saw that simply "PNG" was used with some mp3's, so mimetype setting
+            // was probably invalid
+            if (!string_ok(art_mimetype) || (art_mimetype.index('/') == -1))
+            {
+#ifdef HAVE_MAGIC
+                art_mimetype =  ContentManager::getInstance()->getMimeTypeFromBuffer((void *)pic.data().data(), pic.data().size());
+                if (!string_ok(art_mimetype))
+#endif
+                {
+                    art_mimetype = _(MIMETYPE_DEFAULT);
+                }
+            }
+
+            // if we could not determine the mimetype, then there is no
+            // point to add the resource - it's probably garbage
+            if (art_mimetype != _(MIMETYPE_DEFAULT))
+            {
+                Ref<CdsResource> resource(new CdsResource(CH_ID3));
+                resource->addAttribute(MetadataHandler::getResAttrName(R_PROTOCOLINFO), renderProtocolInfo(art_mimetype));
+                resource->addParameter(_(RESOURCE_CONTENT_TYPE), _(ID3_ALBUM_ART));
+                item->addResource(resource);
+
+                return;
+            }
+        }
     }
+    
+    return;
 }
 
 Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *data_size)
@@ -395,47 +422,60 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
         throw _Exception(_("TagHandler: resource has no album information"));
     }
 
-    TagLib::ID3v2::FrameList list = f.ID3v2Tag()->frameList("APIC");
-    TagLib::ID3v2::AttachedPictureFrame *art;
-    bool did_alloc_art = false;
-    if (list.isEmpty())
     {
-        //throw _Exception(_("TagHandler: resource has no album information"));
-
-        // No embedded album art, find .jpg in folder
-        art = new TagLib::ID3v2::AttachedPictureFrame;
-        did_alloc_art = true;
-        std::string fileName = item->getLocation().c_str();
-        std::string imagePath = getAlbumArtFromFilename(fileName);
-
-        if (imagePath == "")
+        TagLib::ID3v2::FrameList list = f.ID3v2Tag()->frameList("APIC");
+        TagLib::ID3v2::AttachedPictureFrame *art = NULL;
+        if (list.isEmpty())
         {
-            if (did_alloc_art)
+            //throw _Exception(_("TagHandler: resource has no album information"));
+
+            // No embedded album art, find .jpg in folder
+            std::string fileName = item->getLocation().c_str();
+            std::string imagePath = getAlbumArtFromFilename(fileName);
+
+            if(imagePath != "")
             {
-                delete art;
+                art = new TagLib::ID3v2::AttachedPictureFrame;
+                ImageFile albumart(imagePath.c_str());
+            
+                TagLib::ByteVector data = albumart.data();
+                art->setPicture(data);
             }
-            return NULL;
+        }
+        else
+        {
+            art = static_cast<TagLib::ID3v2::AttachedPictureFrame *>(list.front());
         }
 
-        ImageFile albumart(imagePath.c_str());
+        if(art)
+        {
+            Ref < IOHandler > h(new MemIOHandler((void *)art->picture().data(), art->picture().size()));
+            *data_size = art->picture().size();
 
-        TagLib::ByteVector data = albumart.data();
-        art->setPicture(data);
+            delete art;
+        
+            return h;
+        }
+    }
+    
+    TagLib::FLAC::File flac_file(item->getLocation().c_str());
+    if(!flac_file.isValid())
+    {
+        //cout << "INVALID FLAC FILE: " << item->getLocation().c_str() << endl;
     }
     else
     {
-        art = static_cast<TagLib::ID3v2::AttachedPictureFrame *>(list.front());
+        const TagLib::List<TagLib::FLAC::Picture*>& flac_pics = flac_file.pictureList();
+        if(flac_pics.size() > 0)
+        {
+            TagLib::FLAC::Picture &pic = *flac_pics[0];        
+            Ref < IOHandler > h(new MemIOHandler((void *)pic.data().data(), pic.data().size()));
+            *data_size = pic.data().size();
+            return h;
+        }
     }
 
-    Ref<IOHandler> h(new MemIOHandler((void *)art->picture().data(), 
-                art->picture().size()));
-
-    *data_size = art->picture().size();
-    if (did_alloc_art)
-    {
-        delete art;
-    }
-    return h;
+    return NULL;
 }
 
 #endif // HAVE_TAGLIB
