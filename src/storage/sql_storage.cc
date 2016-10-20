@@ -2138,7 +2138,15 @@ void SQLStorage::autoscanUpdateLM(Ref<AutoscanDirectory> adir)
     *q << "UPDATE " << TQ(AUTOSCAN_TABLE)
         << " SET " << TQ("last_modified") << '=' << quote(adir->getPreviousLMT())
         << " WHERE " << TQ("id") << '=' << quote(adir->getStorageID());
-    exec(q);
+
+    try 
+    {
+        exec(q);
+    }
+    catch (Exception e)
+    {
+        log_error("error while running autoscanUpdateLM: %s\n", e.getMessage().c_str());
+    }
 }
 
 int SQLStorage::isAutoscanChild(int objectID)

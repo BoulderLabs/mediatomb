@@ -119,13 +119,30 @@ Ref<Element> UpnpXML_DIDLRenderObject(Ref<CdsObject> obj, bool renderActions, in
     }
     else if (IS_CDS_CONTAINER(objectType))
     {
+        Ref<Dictionary> meta = obj->getMetadata();
+        Ref<Array<DictionaryElement> > elements = meta->getElements();
+        int len = elements->size();
+        
+        String key;
+        String upnp_class = obj->getClass();
+        
+        // Check if the container has album art it should show and add it to the DIDL
+        for (int i = 0; i < len; i++)
+        {
+            Ref<DictionaryElement> el = elements->get(i);
+            key = el->getKey();
+            if (key == MetadataHandler::getMetaFieldName(M_ALBUMARTURI))
+            {
+                result->appendTextChild(key, el->getValue());
+            }
+        }
+
         Ref<CdsContainer> cont = RefCast(obj, CdsContainer);
         
         result->setName(_("container"));
         int childCount = cont->getChildCount();
         if (childCount >= 0)
             result->setAttribute(_("childCount"), String::from(childCount));
-        
     }
     
     if (renderActions && IS_CDS_ACTIVE_ITEM(objectType))
