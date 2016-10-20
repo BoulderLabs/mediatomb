@@ -44,6 +44,11 @@
 #include "content_manager.h"
 #include "config_manager.h"
 
+#include "filesystem.h"
+
+#include <iostream>
+#include <string>
+
 // why does crap like that alsways happens with some Ubuntu package?
 #undef PACKAGE
 #undef PACKAGE_BUGREPORT
@@ -65,29 +70,28 @@ LibMP4V2Handler::LibMP4V2Handler() : MetadataHandler()
 static void addMetaField(metadata_fields_t field, MP4FileHandle mp4, Ref<CdsItem> item)
 {
     String value;
-    char*  mp4_retval = NULL;
-    u_int16_t track;
-    u_int16_t total_tracks;
- 
     Ref<StringConverter> sc = StringConverter::i2i();
     
+    const MP4Tags* new_tags = MP4TagsAlloc();
+
+    if (!MP4TagsFetch(new_tags, mp4))
+        return;
+
     switch (field)
     {
         case M_TITLE:
-            MP4GetMetadataName(mp4, &mp4_retval);
+            value = new_tags->name;
             break;
         case M_ARTIST:
-            MP4GetMetadataArtist(mp4, &mp4_retval);
+            value = new_tags->artist;
             break;
         case M_ALBUM:
-            MP4GetMetadataAlbum(mp4, &mp4_retval);
+            value = new_tags->album;
             break;
         case M_DATE:
-            MP4GetMetadataYear(mp4, &mp4_retval);
-            if (mp4_retval)
+            value = new_tags->releaseDate;
+            if (value.length() > 0)
             {
-                value = mp4_retval;
-                free(mp4_retval);
                 if (string_ok(value))
                     value = value + "-01-01";
                 else
@@ -95,39 +99,77 @@ static void addMetaField(metadata_fields_t field, MP4FileHandle mp4, Ref<CdsItem
             }
             break;
         case M_GENRE:
-            MP4GetMetadataGenre(mp4, &mp4_retval);
+            value = new_tags->genre;
             break;
         case M_DESCRIPTION:
-            MP4GetMetadataComment(mp4, &mp4_retval);
+            value = new_tags->comments;
             break;
         case M_TRACKNUMBER:
-            MP4GetMetadataTrack(mp4, &track, &total_tracks);
-            if (track > 0)
+            if (new_tags->track)
             {
-                value = String::from(track);
-                item->setTrackNumber((int)track);
+                value = String::from(new_tags->track->index);
+                item->setTrackNumber((int)new_tags->track->index);
             }
             else
+            {
+                MP4TagsFree( new_tags );
                 return;
+            }
             break;
         default:
+            MP4TagsFree( new_tags );
             return;
     }
 
-    if ((field != M_DATE) && (field != M_TRACKNUMBER) && 
-        (mp4_retval))
-    {
-        value = mp4_retval;
-        free(mp4_retval);
-    }
-    
+    MP4TagsFree( new_tags );
     value = trim_string(value);
-    
+
     if (string_ok(value))
     {
         item->setMetadata(MT_KEYS[field].upnp, sc->convert(value));
         log_debug("mp4 handler: setting metadata on item: %d, %s\n", field, sc->convert(value).c_str());
     }
+}
+
+std::string getMp4AlbumArtFromFilename(std::string fileName)
+{
+    Ref<StringConverter> sc = StringConverter::i2i();
+
+    size_t found = fileName.find_last_of("/\\");
+    std::string imagePath = fileName.substr(0,found); // Just the base path (no actual filename, yet)
+
+    std::string artFileNames[] = {"Folder.jpg", "Folder.jpeg", "folder.jpg", "folder.jpeg", "Art.jpg",
+                                 "Art.jpeg", "art.jpg", "art.jpeg", "Cover.jpg", "Cover.jpeg", "cover.jpg",
+                                 "cover.jpeg", ".jpg", ".jpeg"};
+    int numNames = 14;
+
+    bool foundArt = false;
+
+    Filesystem *f = new Filesystem();
+    zmm::Ref<zmm::Array<FsObject> > files = f->readDirectory(fileName.substr(0,found).c_str(), FS_MASK_FILES, FS_MASK_FILES);
+    for (int i = 0; i < files->size(); ++i)
+    {
+        if (foundArt)
+            break;
+
+        std::string fn = sc->convert(files->get(i)->filename).c_str();
+        for (int j = 0; j < numNames; j++)
+        {
+            size_t found = fn.find(artFileNames[j]);
+            if (found != std::string::npos)
+            {
+                imagePath += "/" + fn;
+                foundArt = true;
+                break;
+            }
+        }
+    }
+    delete f;
+
+    if (!foundArt)
+        return "";
+    else
+        return imagePath;
 }
 
 void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
@@ -190,14 +232,19 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
         }
 
 #if defined(HAVE_MAGIC)
-        u_int8_t *art_data;
-        u_int32_t art_data_len;
+        void *art_data = 0;
+        u_int32_t art_data_len = 0;
         String art_mimetype;
+
+        const MP4Tags* new_tags = MP4TagsAlloc();
+        MP4TagsFetch(new_tags, mp4);
+        if (new_tags->artworkCount)
+        {
+            art_data = new_tags->artwork->data;
+            art_data_len = new_tags->artwork->size;
+        }
 #ifdef HAVE_MP4_GET_METADATA_COVER_ART_COUNT
-        if (MP4GetMetadataCoverArtCount(mp4) && 
-            MP4GetMetadataCoverArt(mp4, &art_data, &art_data_len))
-#else
-            MP4GetMetadataCoverArt(mp4, &art_data, &art_data_len);
+        if (new_tags->artworkCount && art_data_len > 0) 
 #endif
         {
             if (art_data)
@@ -211,11 +258,81 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
                 }
                 catch (Exception ex)
                 {
-                    free(art_data);
+                    MP4TagsFree(new_tags);
                     throw ex;
                 }
 
+                if (art_mimetype != _(MIMETYPE_DEFAULT))
+                {
+                    Ref<CdsResource> resource(new CdsResource(CH_MP4));
+                    resource->addAttribute(MetadataHandler::getResAttrName(R_PROTOCOLINFO), renderProtocolInfo(art_mimetype));
+                    resource->addParameter(_(RESOURCE_CONTENT_TYPE), _(ID3_ALBUM_ART));
+                    item->addResource(resource);
+                }
+            }
+            // Embedded art was not found, look for folder.jpg, cover.jpg, art.jpg, whatever.jpg
+            else
+            {
+                std::string fileName = item->getLocation().c_str();
+                std::string imagePath = getMp4AlbumArtFromFilename(fileName);
+
+                if (imagePath == "")
+                {
+                    MP4Close(mp4);
+                    return;
+                }
+
+                // std::cout << "Found an image: " << imagePath << std::endl;
+                // std::cout << "For audio file: " << item->getLocation().c_str() << std::endl;
+
+                FILE * pFile;
+                size_t result;
+
+                pFile = fopen(imagePath.c_str(), "rb");
+                if (pFile == NULL) 
+                {
+                    fputs("File error", stderr); 
+                    MP4Close(mp4);
+                    return;
+                }
+
+                // obtain file size:
+                fseek(pFile, 0, SEEK_END);
+                art_data_len = ftell(pFile);
+                rewind(pFile);
+
+                // allocate memory to contain the whole file:
+                art_data = malloc(sizeof(char)*art_data_len);
+                if (art_data == NULL) 
+                {
+                    fputs("Memory error", stderr); 
+                    MP4Close(mp4);
+                    return;
+                }
+
+                // copy the file into the buffer:
+                result = fread (art_data,1,art_data_len,pFile);
+                if (result != art_data_len) 
+                {
+                    fputs("Reading error", stderr); 
+                    MP4Close(mp4);
+                    return;
+                }
+
+                fclose (pFile);
+
+                art_mimetype = ContentManager::getInstance()->getMimeTypeFromBuffer((void *)art_data, art_data_len);
+                // std::cout << "mime type = " << art_mimetype.c_str() << std::endl;
+
                 free(art_data);
+
+                if (!string_ok(art_mimetype))
+                {
+                    art_mimetype = _(MIMETYPE_DEFAULT);
+                }
+
+                // if we could not determine the mimetype, then there is no
+                // point to add the resource - it's probably garbage
                 if (art_mimetype != _(MIMETYPE_DEFAULT))
                 {
                     Ref<CdsResource> resource(new CdsResource(CH_MP4));
@@ -225,6 +342,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
                 }
             }
         }
+        MP4TagsFree(new_tags);
 #endif
         MP4Close(mp4);
     }
@@ -249,26 +367,81 @@ Ref<IOHandler> LibMP4V2Handler::serveContent(Ref<CdsItem> item, int resNum, off_
 
     if (ctype != ID3_ALBUM_ART)
         throw _Exception(_("LibMP4V2Handler: got unknown content type: ") + ctype);
-#ifdef HAVE_MP4_GET_METADATA_COVER_ART_COUNT
-    if (!MP4GetMetadataCoverArtCount(mp4))
-        throw _Exception(_("LibMP4V2Handler: resource has no album art information"));
-#endif
-    u_int8_t *art_data;
-    u_int32_t art_data_len;
-    if (MP4GetMetadataCoverArt(mp4, &art_data, &art_data_len))
+
+    const MP4Tags* new_tags = MP4TagsAlloc();
+    if (MP4TagsFetch(new_tags, mp4))
     {
-        if (art_data)
+        void *art_data = 0;
+        u_int32_t art_data_len;
+
+        const MP4TagArtwork* art = new_tags->artwork;
+        if (art)
         {
+            art_data = art->data;
+            art_data_len = art->size;
+
+            if (art_data)
+            {
+                *data_size = (off_t)art_data_len;
+                Ref<IOHandler> h(new MemIOHandler(art_data, art_data_len));
+                MP4TagsFree(new_tags);
+                return h;
+            }
+        }
+        // No embedded album art, find .jpg in folder
+        else
+        {
+            std::string fileName = item->getLocation().c_str();
+            std::string imagePath = getMp4AlbumArtFromFilename(fileName);
+
+            if (imagePath == "")
+            {
+                MP4TagsFree(new_tags);
+                std::cout << "LibMP4V2Handler: resource has no folder.jpg information" << std::endl;
+                throw _Exception(_("LibMP4V2Handler: resource has no folder.jpg information"));
+            }
+
+            FILE * pFile;
+            size_t result;
+
+            pFile = fopen(imagePath.c_str(), "rb");
+            if (pFile == NULL) 
+            {
+                fputs("File error", stderr); 
+            }
+
+            // obtain file size:
+            fseek(pFile, 0, SEEK_END);
+            art_data_len = ftell(pFile);
+            rewind(pFile);
+
+            // allocate memory to contain the whole file:
+            art_data = malloc(sizeof(char)*art_data_len);
+            if (art_data == NULL) 
+            {
+                fputs("Memory error", stderr); 
+            }
+
+            // copy the file into the buffer:
+            result = fread (art_data,1,art_data_len,pFile);
+            if (result != art_data_len) 
+            {
+                fputs("Reading error", stderr); 
+            }
+
+            fclose (pFile);
+
             *data_size = (off_t)art_data_len;
-            Ref<IOHandler> h(new MemIOHandler((void *)art_data, art_data_len));
+            Ref<IOHandler> h(new MemIOHandler(art_data, art_data_len));
+            MP4TagsFree(new_tags);
             free(art_data);
             return h;
         }
+        MP4TagsFree(new_tags);
     }
-        
     throw _Exception(_("LibMP4V2Handler: could not serve album art "
-                           "for file") + item->getLocation() + 
-                           " - embedded image not found");
+            "for file") + item->getLocation() + 
+        " - embedded image not found");
 }
 
 #endif // HAVE_LIBMP4V2
