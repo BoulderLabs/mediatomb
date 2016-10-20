@@ -77,7 +77,7 @@ AutoscanInotify::AutoscanInotify()
     shutdownFlag = true;
     monitorQueue = Ref<ObjectQueue<AutoscanDirectory> >(new ObjectQueue<AutoscanDirectory>(AUTOSCAN_INOTIFY_INITIAL_QUEUE_SIZE));
     unmonitorQueue = Ref<ObjectQueue<AutoscanDirectory> >(new ObjectQueue<AutoscanDirectory>(AUTOSCAN_INOTIFY_INITIAL_QUEUE_SIZE));
-    events = IN_CLOSE_WRITE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF | IN_MOVE_SELF | IN_UNMOUNT;
+    events = IN_MODIFY | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF | IN_MOVE_SELF | IN_UNMOUNT;
 }
 
 void AutoscanInotify::init()
@@ -281,7 +281,7 @@ void AutoscanInotify::threadProc()
                     }
                 }
                 
-                if (adir != nil && mask & (IN_DELETE | IN_DELETE_SELF | IN_MOVE_SELF | IN_CLOSE_WRITE | IN_MOVED_FROM | IN_MOVED_TO | IN_UNMOUNT))
+                if (adir != nil && mask & (IN_DELETE | IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY | IN_MOVED_FROM | IN_MOVED_TO | IN_UNMOUNT))
                 {
                     String fullPath;
                     if (mask & IN_ISDIR)
@@ -312,7 +312,7 @@ void AutoscanInotify::threadProc()
                         if (objectID != INVALID_OBJECT_ID)
                             cm->removeObject(objectID);
                     }
-                    if (mask & (IN_CLOSE_WRITE | IN_MOVED_TO))
+                    if (mask & (IN_MODIFY | IN_MOVED_TO))
                     {
                         log_debug("adding %s\n", path.c_str());
                         // path, recursive, async, hidden, low priority, cancellable
