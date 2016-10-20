@@ -52,6 +52,9 @@
 #include "layout/fallback_layout.h"
 #include "filesystem.h"
 
+#include <iostream>
+#include <string>
+
 #ifdef HAVE_JS
     #include "layout/js_layout.h"
 #endif
@@ -200,7 +203,7 @@ ContentManager::ContentManager() : TimerSubscriberSingleton<ContentManager>()
 #endif
     /* init filemagic */
 #ifdef HAVE_MAGIC
-    if (! ignore_unknown_extensions)
+    // Always initialize filemagic, because it is needed for the Folder.jpg album art scheme
     {
         ms = magic_open(MAGIC_MIME);
         if (ms == NULL)
@@ -1542,9 +1545,25 @@ void ContentManager::threadProc()
     working = true;
     while(! shutdownFlag)
     {
+        if (working)
+        {   
+            if (currentTask != nil)
+            {
+                std::string description = currentTask->getDescription().c_str();
+                std::string sub = "Performing full scan";
+                if (description.find(sub) != std::string::npos)
+                {
+                    std::cout << "WORKING ON A TASK: " << description << std::endl;
+                    system("touch /tmp/mediatomb_update_in_progress");
+                }
+            }
+        }
+
         currentTask = nil;
         if(((task = taskQueue1->dequeue()) == nil) && ((task = taskQueue2->dequeue()) == nil))
         {
+            system("rm -f /tmp/mediatomb_update_in_progress");
+
             working = false;
             /* if nothing to do, sleep until awakened */
             cond->wait();
