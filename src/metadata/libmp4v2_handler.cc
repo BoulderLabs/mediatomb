@@ -185,6 +185,10 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
         return;
     }
 
+#if defined(HAVE_MAGIC)
+    const MP4Tags* new_tags = MP4TagsAlloc();
+#endif
+
     try
     {
         for (int i = 0; i < M_MAX; i++)
@@ -236,7 +240,6 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
         u_int32_t art_data_len = 0;
         String art_mimetype;
 
-        const MP4Tags* new_tags = MP4TagsAlloc();
         MP4TagsFetch(new_tags, mp4);
         if (new_tags->artworkCount)
         {
@@ -278,6 +281,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
 
                 if (imagePath == "")
                 {
+                    MP4TagsFree(new_tags);
                     MP4Close(mp4);
                     return;
                 }
@@ -292,6 +296,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
                 if (pFile == NULL) 
                 {
                     fputs("File error", stderr); 
+                    MP4TagsFree(new_tags);
                     MP4Close(mp4);
                     return;
                 }
@@ -306,6 +311,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
                 if (art_data == NULL) 
                 {
                     fputs("Memory error", stderr); 
+                    MP4TagsFree(new_tags);
                     MP4Close(mp4);
                     return;
                 }
@@ -315,6 +321,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
                 if (result != art_data_len) 
                 {
                     fputs("Reading error", stderr); 
+                    MP4TagsFree(new_tags);
                     MP4Close(mp4);
                     return;
                 }
@@ -348,6 +355,7 @@ void LibMP4V2Handler::fillMetadata(Ref<CdsItem> item)
     }
     catch (Exception ex)
     {
+        MP4TagsFree(new_tags);
         MP4Close(mp4);
         throw ex;
     }
