@@ -186,8 +186,10 @@ void Sqlite3Storage::init()
     *buf << "PRAGMA synchronous = " << synchronousOption;
     SQLStorage::exec(buf);
     
-    
-    
+#ifdef __arm__
+    _exec("PRAGMA temp_store_directory = '/writeable/'");
+#endif
+
     log_debug("db_version: %s\n", dbVersion.c_str());
     
     /* --- database upgrades --- */
