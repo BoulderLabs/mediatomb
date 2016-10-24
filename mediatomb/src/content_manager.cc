@@ -1550,8 +1550,9 @@ void ContentManager::threadProc()
             if (currentTask != nil)
             {
                 std::string description = currentTask->getDescription().c_str();
-                std::string sub = "Performing full scan";
-                if (description.find(sub) != std::string::npos)
+                std::string full_sub = "Performing full scan";
+                std::string adding_sub = "Adding:";
+                if (description.find(full_sub) != std::string::npos || description.find(adding_sub) != std::string::npos)
                 {
                     std::cout << "WORKING ON A TASK: " << description << std::endl;
                     system("touch /tmp/mediatomb_update_in_progress");
