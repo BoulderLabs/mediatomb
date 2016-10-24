@@ -43,6 +43,7 @@
 #ifdef AUTO_CREATE_DATABASE
     #include "sqlite3_create_sql.h"
     #include <zlib.h>
+    #include <string>
 #endif
 
 // updates 1->2
@@ -467,10 +468,15 @@ void SLInitTask::run(sqlite3 **db, Sqlite3Storage *sl)
         throw _StorageException(nil, _("Error while uncompressing sqlite3 create sql. returned: ") + ret);
     buf[SL3_CREATE_SQL_INFLATED_SIZE] = '\0';
     
+    // Rename PC Directory to Files
+    std::string buf_str = buf;
+    size_t f = buf_str.find("PC Directory");
+    buf_str.replace(f, std::string("PC Directory").length(), "Files");
+    
     char *err = NULL;
     ret = sqlite3_exec(
         *db,
-        (const char *)buf,
+        (const char *)buf_str.c_str(),
         NULL,
         NULL,
         &err
@@ -483,7 +489,7 @@ void SLInitTask::run(sqlite3 **db, Sqlite3Storage *sl)
     }
     if(ret != SQLITE_OK)
     {
-        throw _StorageException(nil, sl->getError((const char*)buf, error, *db));
+        throw _StorageException(nil, sl->getError((const char*)buf_str.c_str(), error, *db));
     }
     contamination = true;
 }
