@@ -130,6 +130,7 @@ void ContentDirectoryService::upnp_action_Browse(Ref<ActionRequest> request)
 
         // Browse inside the container and get its first object
         Ref<BrowseParam> param2(new BrowseParam(obj->getID(), BROWSE_DIRECT_CHILDREN | BROWSE_ITEMS));
+        param2->setRange(0, 1);
         zmm::Ref<zmm::Array<CdsObject> > browseRes = storage->browse(param2);
 
         int resSize = browseRes->size();
