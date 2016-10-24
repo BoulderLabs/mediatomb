@@ -447,10 +447,9 @@ void FallbackLayout::addAudio(zmm::Ref<CdsObject> obj)
 
     artist = esc(artist);
 
-    chain = _("/Audio/Artists/") + artist + "/All Songs";
-
-    id = ContentManager::getInstance()->addContainerChain(chain);
-    add(obj, id);
+    //chain = _("/Audio/Artists/") + artist + "/All Songs";
+    //id = ContentManager::getInstance()->addContainerChain(chain);
+    //add(obj, id);
 
     String temp;
     if (string_ok(artist_full))
@@ -462,12 +461,20 @@ void FallbackLayout::addAudio(zmm::Ref<CdsObject> obj)
         temp = temp + " - ";
 
     album = esc(album);
-    chain = _("/Audio/Artists/") +  artist + _("/") + album;
+    chain = _("/Audio/ Artists&Albums /") + artist.charAt(0) + _("/") +  artist + _("/") + album;
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ARTIST));
+    add(obj, id);
+
+    chain = _("/Audio/Albums/") + album.charAt(0) + _("/") + album;
     id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
     add(obj, id);
 
-    chain = _("/Audio/Albums/") + album;
+    chain = _("/Audio/All Albums/") + _("/") + album;
     id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
+    add(obj, id);
+
+    chain = _("/Audio/All Artists/") + artist + _("/") + album;
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ARTIST));
     add(obj, id);
 
     chain = _("/Audio/Genres/") + esc(genre);
@@ -480,12 +487,12 @@ void FallbackLayout::addAudio(zmm::Ref<CdsObject> obj)
 
     obj->setTitle(temp + title);
 
-    id = ContentManager::getInstance()->addContainerChain(_("/Audio/All - full name"));
-    add(obj, id);
+    //id = ContentManager::getInstance()->addContainerChain(_("/Audio/All - full name"));
+    //add(obj, id);
 
-    chain = _("/Audio/Artists/") + artist + "/All - full name";
-    id = ContentManager::getInstance()->addContainerChain(chain);
-    add(obj, id);
+    //chain = _("/Audio/Artists/") + artist.charAt(0) + _("/") + artist + "/All - full name";
+    //id = ContentManager::getInstance()->addContainerChain(chain);
+    //add(obj, id);
 
 
 }
@@ -756,19 +763,21 @@ void FallbackLayout::processCdsObject(zmm::Ref<CdsObject> obj, String rootpath)
                     CFG_IMPORT_MAPPINGS_MIMETYPE_TO_CONTENTTYPE_LIST);
         String content_type = mappings->get(mimetype);
 
-        if (mimetype.startsWith(_("video")))
-            addVideo(clone, rootpath);
-        else if (mimetype.startsWith(_("image")))
-            addImage(clone, rootpath);
-        else if ((mimetype.startsWith(_("audio")) && 
-                    (content_type != CONTENT_TYPE_PLAYLIST)))
+
+        if ((mimetype.startsWith(_("audio")) && (content_type != CONTENT_TYPE_PLAYLIST)))
+        {
             addAudio(clone);
+        }
         else if (content_type == CONTENT_TYPE_OGG)
         {
             if (obj->getFlag(OBJECT_FLAG_OGG_THEORA))
-                addVideo(clone, rootpath);
+            {
+                // do nothing
+            }
             else
+            {
                 addAudio(clone);
+            }
         }
 #ifdef HAVE_LIBDVDNAV
         else if (content_type == CONTENT_TYPE_DVD)
