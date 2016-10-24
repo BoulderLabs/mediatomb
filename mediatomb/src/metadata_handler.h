@@ -47,6 +47,7 @@
 #define CH_FFTH      6
 
 #define CONTENT_TYPE_MP3        "mp3"
+#define CONTENT_TYPE_DSF        "dsf"
 #define CONTENT_TYPE_OGG        "ogg"
 #define CONTENT_TYPE_FLAC       "flac"
 #define CONTENT_TYPE_JPG        "jpg"
