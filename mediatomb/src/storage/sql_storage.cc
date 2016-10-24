@@ -2353,9 +2353,9 @@ void SQLStorage::addToInsertBuffer(Ref<StringBuffer> query)
 {
     assert(doInsertBuffering());
     
+    AUTOLOCK(mutex);
     _addToInsertBuffer(query);
     
-    AUTOLOCK(mutex);
     insertBufferEmpty = false;
     insertBufferStatementCount++;
     insertBufferByteCount += query->length();
