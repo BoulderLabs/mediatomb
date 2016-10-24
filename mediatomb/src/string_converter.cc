@@ -61,7 +61,9 @@ zmm::String StringConverter::convert(String str, bool validate)
     size_t stoppedAt = 0;
     String ret;
 
-    if (!string_ok(str))
+    return str;
+
+/*    if (!string_ok(str))
         return str;
 
     do
@@ -79,7 +81,7 @@ zmm::String StringConverter::convert(String str, bool validate)
         stoppedAt = 0;
     } while (true);
 
-    return ret;
+    return ret;*/
 }
 
 bool StringConverter::validate(String str)
