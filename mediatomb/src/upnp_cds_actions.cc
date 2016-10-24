@@ -36,6 +36,10 @@
 #include "upnp_cds.h"
 #include "server.h"
 #include "storage.h"
+#include "cds_resource_manager.h"
+#include "string_converter.h"
+
+#include "metadata_handler.h"
 
 using namespace zmm;
 using namespace mxml;
@@ -43,6 +47,7 @@ using namespace mxml;
 void ContentDirectoryService::upnp_action_Browse(Ref<ActionRequest> request)
 {
     log_debug("start\n");
+
     Ref<Storage> storage = Storage::getInstance();
    
     Ref<Element> req = request->getRequest();
@@ -119,6 +124,36 @@ void ContentDirectoryService::upnp_action_Browse(Ref<ActionRequest> request)
                 title = title + cfg->getOption(CFG_SERVER_EXTOPTS_MARK_PLAYED_ITEMS_STRING);
 
             obj->setTitle(title);
+        }
+
+        // Set the folder's album art with the art of the first song inside the album (if that song has art)
+
+        // Browse inside the container and get its first object
+        Ref<BrowseParam> param2(new BrowseParam(obj->getID(), BROWSE_DIRECT_CHILDREN | BROWSE_ITEMS));
+        zmm::Ref<zmm::Array<CdsObject> > browseRes = storage->browse(param2);
+
+        int resSize = browseRes->size();
+        if (resSize)
+        {
+            // Check how many resources the object has. If it has more than 1, the second is album art
+            zmm::Ref<zmm::Array<CdsResource> > resources = browseRes->get(0)->getResources();
+            if (resources->size() > 1)
+            {
+                Ref<CdsItem> item = RefCast(browseRes->get(0), CdsItem);
+
+                Ref<Dictionary> dict(new Dictionary());
+                dict->put(_(URL_OBJECT_ID), String::from(item->getID()));
+
+                // Get the album art resource from the item
+                String url = Server::getInstance()->getVirtualURL() +
+                       _(_URL_PARAM_SEPARATOR) +
+                       CONTENT_MEDIA_HANDLER + _(_URL_PARAM_SEPARATOR) + 
+                       dict->encodeSimple() + _(_URL_PARAM_SEPARATOR) + 
+                       _(URL_RESOURCE_ID) + _(_URL_PARAM_SEPARATOR) + "1/rct/aa";
+
+                // Set the container's albumArtURI to the album art
+                obj->setMetadata("upnp:albumArtURI", url);
+            }
         }
 
         Ref<Element> didl_object = UpnpXML_DIDLRenderObject(obj, false, stringLimit);
