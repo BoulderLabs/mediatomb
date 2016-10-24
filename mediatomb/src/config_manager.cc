@@ -2439,7 +2439,8 @@ Ref<Element> ConfigManager::getElement(String xpath)
 
 void ConfigManager::writeBookmark(String ip, String port)
 {
-    FILE    *f;
+    return;
+    /*FILE    *f;
     String  filename;
     String  path;
     String  data; 
@@ -2468,7 +2469,7 @@ void ConfigManager::writeBookmark(String ip, String port)
     fclose(f);
 
     if (size < data.length())
-        throw _Exception(_("write_Bookmark: failed to write to: ") + path);
+        throw _Exception(_("write_Bookmark: failed to write to: ") + path);*/
 
 }
 
