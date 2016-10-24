@@ -308,6 +308,7 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
     // Look for embedded album art
     TagLib::ID3v2::FrameList list = mp.ID3v2Tag()->frameList("APIC");
     TagLib::ID3v2::AttachedPictureFrame *art;
+    bool did_alloc_art = false;
     if (!list.isEmpty())
     {
         art = static_cast<TagLib::ID3v2::AttachedPictureFrame *>(list.front());
@@ -316,6 +317,7 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
     else
     {
         art = new TagLib::ID3v2::AttachedPictureFrame;
+        did_alloc_art = true;
         Ref<StringConverter> sc = StringConverter::i2i(); // sure is sure
 
         std::string fileName = item->getLocation().c_str();
@@ -323,7 +325,13 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
         std::string imagePath = getAlbumArtFromFilename(fileName);
 
         if (imagePath == "")
+        {
+            if (did_alloc_art)
+            {
+                delete art;
+            }
             return;
+        }
 
         ImageFile albumart(imagePath.c_str());
 
@@ -332,7 +340,14 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
     }
 
     if (art->picture().size() < 1)
+    {
+
+        if (did_alloc_art)
+        {
+            delete art;
+        }
         return;
+    }
 
     String art_mimetype = sc->convert(art->mimeType().toCString(true));
     // saw that simply "PNG" was used with some mp3's, so mimetype setting
@@ -354,6 +369,11 @@ void TagHandler::fillMetadata(Ref<CdsItem> item)
         resource->addAttribute(MetadataHandler::getResAttrName(R_PROTOCOLINFO), renderProtocolInfo(art_mimetype));
         resource->addParameter(_(RESOURCE_CONTENT_TYPE), _(ID3_ALBUM_ART));
         item->addResource(resource);
+    }
+
+    if (did_alloc_art)
+    {
+        delete art;
     }
 }
 
@@ -377,17 +397,25 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
 
     TagLib::ID3v2::FrameList list = f.ID3v2Tag()->frameList("APIC");
     TagLib::ID3v2::AttachedPictureFrame *art;
+    bool did_alloc_art = false;
     if (list.isEmpty())
     {
         //throw _Exception(_("TagHandler: resource has no album information"));
 
         // No embedded album art, find .jpg in folder
         art = new TagLib::ID3v2::AttachedPictureFrame;
+        did_alloc_art = true;
         std::string fileName = item->getLocation().c_str();
         std::string imagePath = getAlbumArtFromFilename(fileName);
 
         if (imagePath == "")
+        {
+            if (did_alloc_art)
+            {
+                delete art;
+            }
             return NULL;
+        }
 
         ImageFile albumart(imagePath.c_str());
 
@@ -403,6 +431,10 @@ Ref<IOHandler> TagHandler::serveContent(Ref<CdsItem> item, int resNum, off_t *da
                 art->picture().size()));
 
     *data_size = art->picture().size();
+    if (did_alloc_art)
+    {
+        delete art;
+    }
     return h;
 }
 
