@@ -58,6 +58,8 @@
 #define CONTENT_TYPE_MPEG       "mpeg"
 #define CONTENT_TYPE_DVD        "dvd"
 #define CONTENT_TYPE_QUICKTIME  "quicktime"
+#define CONTENT_TYPE_WAV        "wav"
+#define CONTENT_TYPE_AIFF       "aiff"
 
 #define OGG_THEORA              "t"
 

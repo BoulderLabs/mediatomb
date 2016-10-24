@@ -141,7 +141,10 @@ void MetadataHandler::setMetadata(Ref<CdsItem> item)
             (content_type == CONTENT_TYPE_DSF) ||
            ((content_type == CONTENT_TYPE_OGG) && 
             (!item->getFlag(OBJECT_FLAG_OGG_THEORA))) ||
-            (content_type == CONTENT_TYPE_FLAC))
+            (content_type == CONTENT_TYPE_FLAC) ||
+            (content_type == CONTENT_TYPE_WAV) ||
+            (content_type == CONTENT_TYPE_AIFF)
+            )
         {
             handler = Ref<MetadataHandler>(new TagHandler());
             break;
