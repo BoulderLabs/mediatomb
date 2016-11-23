@@ -462,7 +462,7 @@ void FallbackLayout::addAudio(zmm::Ref<CdsObject> obj)
 
     album = esc(album);
     chain = _("/Audio/ Artists&Albums /") + artist.charAt(0) + _("/") +  artist + _("/") + album;
-    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ARTIST));
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
     add(obj, id);
 
     chain = _("/Audio/Albums/") + album.charAt(0) + _("/") + album;
@@ -474,15 +474,15 @@ void FallbackLayout::addAudio(zmm::Ref<CdsObject> obj)
     add(obj, id);
 
     chain = _("/Audio/All Artists/") + artist + _("/") + album;
-    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ARTIST));
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
     add(obj, id);
 
-    chain = _("/Audio/Genres/") + esc(genre);
-    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_GENRE));
+    chain = _("/Audio/Genres/") + esc(genre) + _("/") + artist + _("/") + album;
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
     add(obj, id);
 
-    chain = _("/Audio/Year/") + esc(date);
-    id = ContentManager::getInstance()->addContainerChain(chain);
+    chain = _("/Audio/Year/") + esc(date) + _("/") + artist + _("/") + album;
+    id = ContentManager::getInstance()->addContainerChain(chain, _(UPNP_DEFAULT_CLASS_MUSIC_ALBUM));
     add(obj, id);
 
     obj->setTitle(temp + title);
